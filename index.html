@@ -14,17 +14,41 @@
     </header>
     
     <main>
-        <h1>Families</h1>
-        <div id="loading-families" class="loading">Loading families...</div>
-        <div id="error-families" class="error" style="display: none;"></div>
-        <div id="families-list"></div>
-
-        <h1>Resorts</h1>
-        <div id="loading-resorts" class="loading">Loading resorts...</div>
-        <div id="error-resorts" class="error" style="display: none;"></div>
-        <div id="resorts-list"></div>
-    </main>
+        <div class="container">
+          <!-- currency toggle is injected here by script.js -->
+      
+          <div class="section-card">
+            <h2>Families</h2>
+            <div id="loading-families" class="loading">Loading families...</div>
+            <div id="error-families" class="error" style="display:none;"></div>
+            <div id="families-list"></div>
+          </div>
+      
+          <div class="section-card">
+            <h2>Resorts</h2>
+            <div id="loading-resorts" class="loading">Loading resorts...</div>
+            <div id="error-resorts" class="error" style="display:none;"></div>
+            <div id="resorts-list"></div>
+          </div>
+      
+          <div class="section-card">
+            <h2>Flights</h2>
+            <div id="loading-flights" class="loading">Loading flights...</div>
+            <div id="error-flights" class="error" style="display:none;"></div>
+            <div id="flights-list"></div>
+          </div>
+      
+          <div class="section-card">
+            <h2>Extras</h2>
+            <div id="loading-extras" class="loading" style="display:none;">Loading...</div>
+            <div id="error-extras" class="error" style="display:none;"></div>
+            <div id="extras-list"></div>
+          </div>
+        </div>
+      </main>
     
+
+
     <footer>
         <p>&copy; 2024 Disney Trip Planner</p>
     </footer>
