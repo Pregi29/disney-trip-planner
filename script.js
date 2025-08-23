@@ -442,7 +442,7 @@ async function displayFlights() {
     }
 }
 
-// --- displayExtras: builds a table into #extras-list
+// --- displayExtras: builds a full table into #extras-list (uses existing convert/formatMoney/displayCurrency)
 async function displayExtras() {
     const container = document.getElementById("extras-list");
     const loadingEl = document.getElementById("loading-extras");
@@ -459,6 +459,25 @@ async function displayExtras() {
         errorEl.textContent = "";
     }
 
+    // local helper to get fields (uses your global getField if present)
+    const pick = (record, names) => {
+        if (typeof getField === "function") return getField(record, names);
+        for (const n of names) {
+            if (record.fields && record.fields[n] !== undefined) return record.fields[n];
+        }
+        return undefined;
+    };
+
+    // pretty domain label (like Flights)
+    const domainLabel = (url) => {
+        if (!url) return "";
+        try {
+            return new URL(url).hostname.replace(/^www\./, "");
+        } catch {
+            return "Link";
+        }
+    };
+
     try {
         const records = await fetchTable(AIRTABLE_TABLE_EXTRAS);
 
@@ -467,60 +486,63 @@ async function displayExtras() {
             return;
         }
 
-        // Build header
+        // header
         let html = `
-            <div class="table-container">
-              <table class="table-view">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Notes</th>
-                    <th>Original Price</th>
-                    <th>Price (${displayCurrency})</th>
-                    <th>Link</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <div class="table-container">
+            <table class="table-view">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Original</th>
+                  <th>Price (${displayCurrency})</th>
+                  <th>Notes</th>
+                  <th>Booking</th>
+                </tr>
+              </thead>
+              <tbody>
         `;
 
-        // Build rows
+        // rows
         html += records.map(r => {
-            const name = r.fields["Name"] || "Unnamed Extra";
-            const notes = r.fields["Notes"] || "";
-            const costRaw = r.fields["Cost"];
-            const currency = r.fields["Currency"] || "";
-            const link = r.fields["Link"];
+            const name = pick(r, ["Name", "Extra", "Title"]) || "Unnamed Extra";
+            const priceRaw = pick(r, ["Price input", "Cost", "Price"]);
+            const currency = pick(r, ["Currency", "currency"]) || "";
+            const notes = pick(r, ["Notes", "notes"]) || "";
+            const link = pick(r, ["Booking Link", "Link"]) || "";
 
-            // original price
-            const originalPrice = (costRaw && currency) ? `${costRaw} ${currency}` : "—";
+            const originalStr = (priceRaw !== undefined && priceRaw !== null && currency)
+                ? `${priceRaw} ${currency}` : "—";
 
-            // converted
             let convertedStr = "—";
-            if (costRaw && currency) {
-                const converted = convert(Number(costRaw), String(currency), displayCurrency);
-                if (converted != null) convertedStr = formatMoney(converted, displayCurrency);
+            if (priceRaw !== undefined && priceRaw !== null && currency) {
+                const val = Number(priceRaw);
+                if (!isNaN(val)) {
+                    const conv = convert(val, String(currency), displayCurrency);
+                    if (conv !== null && conv !== undefined && !isNaN(conv)) {
+                        convertedStr = formatMoney(conv, displayCurrency);
+                    }
+                }
             }
 
-            // link button
-            const linkBtn = link 
-                ? `<a href="${link}" target="_blank" class="btn small">Link</a>` 
+            const linkHtml = link
+                ? `<a href="${link}" target="_blank" rel="noopener" class="link-icon">${domainLabel(link)}</a>`
                 : "";
 
             return `
-                <tr>
-                    <td>${name}</td>
-                    <td>${notes}</td>
-                    <td>${originalPrice}</td>
-                    <td>${convertedStr}</td>
-                    <td>${linkBtn}</td>
-                </tr>
+              <tr>
+                <td>${name}</td>
+                <td>${originalStr}</td>
+                <td>${convertedStr}</td>
+                <td>${notes}</td>
+                <td>${linkHtml}</td>
+              </tr>
             `;
         }).join("");
 
         html += `
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
+          </div>
         `;
 
         container.innerHTML = html;
@@ -536,7 +558,6 @@ async function displayExtras() {
         if (loadingEl) loadingEl.style.display = "none";
     }
 }
-
 // Run after DOM is ready so the elements exist
 document.addEventListener("DOMContentLoaded", () => {
     displayFamilies();

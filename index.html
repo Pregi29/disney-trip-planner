@@ -38,12 +38,27 @@
             <div id="flights-list"></div>
           </div>
       
-          <div class="section-card">
+          <!-- === Extras Section === -->
+        <div class="section-card">
             <h2>Extras</h2>
-            <div id="loading-extras" class="loading" style="display:none;">Loading...</div>
-            <div id="error-extras" class="error" style="display:none;"></div>
-            <div id="extras-list"></div>
-          </div>
+            <div id="loading-extras" style="display:none;">Loading extras...</div>
+            <div id="error-extras" class="error-message" style="display:none;"></div>
+            <div id="extras-list">
+            <table class="table-view">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Original Price</th>
+                    <th>Converted Price</th>
+                    <th>Notes</th>
+                    <th>Link</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- Filled by JS -->
+                </tbody>
+            </table>
+            </div>
         </div>
       </main>
     
