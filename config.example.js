@@ -1,5 +1,5 @@
 // config.js
-const AIRTABLE_API_KEY = "patnd4fDi4MZRmg0g.6c31207b4cedb51f2a27b379136ab17c3eacb0affbe966ba0ae91ee2fb8e8fdb";
+const AIRTABLE_API_KEY = "AIRTABLE API KEY";
 const AIRTABLE_BASE_ID = "appzXj2yZzT2G4dCJ";
 const AIRTABLE_TABLE_FAMILIES = "Families";
 const AIRTABLE_TABLE_RESORT = "Resort";
