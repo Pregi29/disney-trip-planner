@@ -1,3 +1,21 @@
+// === Selection state: persist checked items across re-renders ===
+const selectedItems = new Set(); // stores Airtable record.id strings
+
+function onToggleItemCheckbox(cb) {
+  const id = cb.getAttribute("data-id");
+  if (!id) return;
+  if (cb.checked) selectedItems.add(id);
+  else selectedItems.delete(id);
+}
+
+// Delegate checkbox changes (works for all tables)
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.matches(".item-checkbox")) {
+    onToggleItemCheckbox(e.target);
+    updateTripTotal();
+  }
+});
+
 
 // --- Currency Helpers ---
 function convert(amount, fromCurrency, toCurrency) {
@@ -148,6 +166,7 @@ function familiesFromLookup(val) {
 }
 
 // --- displayResorts: builds a full table into #resorts-list
+// === Resorts display (with checkbox + numeric data-price) ===
 async function displayResorts() {
     const container = document.getElementById("resorts-list");
     const loadingEl = document.getElementById("loading-resorts");
@@ -159,94 +178,95 @@ async function displayResorts() {
     }
 
     if (loadingEl) loadingEl.style.display = "block";
-    if (errorEl) {
-        errorEl.style.display = "none";
-        errorEl.textContent = "";
-    }
+    if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
+
+    // field picker (respects any global getField you may have)
+    const pick = (record, names) => {
+        if (typeof getField === "function") return getField(record, names);
+        for (const n of names) {
+            if (record.fields && record.fields[n] !== undefined) return record.fields[n];
+        }
+        return undefined;
+    };
 
     try {
         const records = await fetchTable(AIRTABLE_TABLE_RESORT);
-
         if (!records || records.length === 0) {
             container.innerHTML = `<p>No resorts found.</p>`;
             return;
         }
 
-        // Table header + wrapper (horizontal scroll if needed)
-        const headerHtml = `
-            <div class="table-container">
-              <table class="table-view">
-                <thead>
-                  <tr>
-                    <th>Resort</th>
-                    <th>Origin</th>
-                    <th>Original Price</th>
-                    <th>Price (${displayCurrency})</th>
-                    <th>Perks</th>
-                    <th>Families Included</th>
-                  </tr>
-                </thead>
-                <tbody>
+        let html = `
+          <div class="table-container">
+            <table class="table-view">
+              <thead>
+                <tr>
+                  <th></th> <!-- checkbox -->
+                  <th>Resort</th>
+                  <th>Origin</th>
+                  <th>Original</th>
+                  <th>Price (${displayCurrency})</th>
+                  <th>Perks</th>
+                  <th>Families</th>
+                </tr>
+              </thead>
+              <tbody>
         `;
 
-        // Build rows
-        const rowsHtml = records.map(r => {
-            // Try multiple possible field name variants to avoid brittle breaks
-            const name = getField(r, ["Resort Name", "Name", "Resort"]) || "Unnamed Resort";
-            const origin = getField(r, ["Booking Origin", "Booking origin", "Origin"]) || "";
-            const inputPriceRaw = getField(r, ["Price input", "Price (input)", "Price"]) ;
-            const currency = getField(r, ["Currency", "currency"]) || "";
-            const perks = getField(r, ["Perks", "Perks Notes", "Perks notes"]) || "";
-            const familiesLookup = getField(r, [
-                "Name (from Families Included)",
-                "Name (from Families included)",
-                "Name (from Family)",
-                "Families Included",
-                "Families"
-            ]) || "";
+        html += records.map(r => {
+            const name = pick(r, ["Resort Name","Name","Resort"]) || "Unnamed Resort";
+            const origin = pick(r, ["Booking Origin","Origin"]) || "";
+            const priceRaw = pick(r, ["Price input","Price (input)","Price"]) ?? "";
+            const currency = pick(r, ["Currency","currency"]) || "";
+            const perks = pick(r, ["Perks","Notes"]) || "";
+            const fams = pick(r, ["Name (from Families included)","Families included","Families"]) || [];
+            const familiesIncluded = Array.isArray(fams) ? fams.join(", ") : String(fams || "");
 
-            // Parse numeric price safely
-            const inputPrice = (inputPriceRaw === 0 || inputPriceRaw) ? Number(inputPriceRaw) : null;
-
-            // Compute converted value if possible
+            // numeric conversion + display
+            let convertedVal = 0;
+            let originalStr = "—";
             let convertedStr = "—";
-            if (inputPrice != null && currency) {
-                const convertedVal = convert(Number(inputPrice), String(currency), displayCurrency);
-                if (convertedVal != null) convertedStr = formatMoney(convertedVal, displayCurrency);
+            if (priceRaw !== "" && currency) {
+                const num = Number(priceRaw);
+                if (!isNaN(num)) {
+                    convertedVal = convert(num, String(currency), displayCurrency) || 0;
+                    originalStr = `${num} ${currency}`;
+                    convertedStr = formatMoney(convertedVal, displayCurrency);
+                }
             }
 
-            // Original price display (keep raw currency for reference)
-            const originalStr = (inputPrice != null && currency) ? `${inputPrice} ${currency}` : "—";
-
-            // Families included: handle lookup arrays or strings
-            const familiesIncluded = familiesFromLookup(familiesLookup);
-
             return `
-                <tr>
-                    <td>${name}</td>
-                    <td>${origin}</td>
-                    <td>${originalStr}</td>
-                    <td>${convertedStr}</td>
-                    <td>${perks}</td>
-                    <td>${familiesIncluded}</td>
-                </tr>
+              <tr>
+                <td>
+                    <input 
+                        type="checkbox" 
+                        class="item-checkbox" 
+                        data-id="${r.id}"
+                        data-amount="${!isNaN(Number(priceRaw)) ? Number(priceRaw) : 0}"
+                        data-currency="${currency || 'USD'}"
+                        ${selectedItems.has(r.id) ? "checked" : ""}
+                    />
+                </td>
+                <td>${name}</td>
+                <td>${origin}</td>
+                <td>${originalStr}</td>
+                <td>${convertedStr}</td>
+                <td>${perks}</td>
+                <td>${familiesIncluded}</td>
+              </tr>
             `;
         }).join("");
 
-        const footerHtml = `
-                </tbody>
-              </table>
-            </div>
+        html += `
+              </tbody>
+            </table>
+          </div>
         `;
 
-        container.innerHTML = headerHtml + rowsHtml + footerHtml;
-
+        container.innerHTML = html;
     } catch (err) {
         console.error("displayResorts error:", err);
-        if (errorEl) {
-            errorEl.style.display = "block";
-            errorEl.textContent = `Failed to load Resorts: ${err.message || err}`;
-        }
+        if (errorEl) { errorEl.style.display = "block"; errorEl.textContent = `Failed to load Resorts: ${err.message || err}`; }
         container.innerHTML = "";
     } finally {
         if (loadingEl) loadingEl.style.display = "none";
@@ -279,7 +299,7 @@ function renderResortRow(r) {
 
 
 
-// --- displayFlights: builds a full table into #flights-list ---
+// === Flights display (with checkbox + numeric data-price) ===
 async function displayFlights() {
     const container = document.getElementById("flights-list");
     const loadingEl = document.getElementById("loading-flights");
@@ -291,151 +311,127 @@ async function displayFlights() {
     }
 
     if (loadingEl) loadingEl.style.display = "block";
-    if (errorEl) {
-        errorEl.style.display = "none";
-        errorEl.textContent = "";
-    }
+    if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
 
-    // Local short-date helper (use existing shortDate if available)
-    const formatShortDate = (d) => {
-        if (!d) return "";
-        if (typeof shortDate === "function") return shortDate(d);
-        const date = new Date(d);
-        if (isNaN(date)) return d;
-        return date.toLocaleDateString("en-US", { day: "2-digit", month: "short" }); // e.g. 05 Jan
+    const pick = (record, names) => {
+        if (typeof getField === "function") return getField(record, names);
+        for (const n of names) {
+            if (record.fields && record.fields[n] !== undefined) return record.fields[n];
+        }
+        return undefined;
     };
 
-    // Helper to get a nice short family name from lookup/string
-    const shortFamily = (val) => {
-        if (!val) return "";
-        // If it's an array (lookup), take first item
-        let s = Array.isArray(val) ? val[0] : val;
-        if (typeof s !== "string") s = String(s);
-        // If name uses + as separator, take the part before +
-        const first = s.split(",")[0].split("+")[0].trim();
-        return first;
+    // small helpers (non-breaking)
+    const trimFamily = (name) => {
+        if (!name) return "";
+        const s = String(name);
+        const idx = s.indexOf("+");
+        return idx > 0 ? s.slice(0, idx).trim() : s.trim();
+    };
+    const shortDate = (dstr) => {
+        if (!dstr) return "";
+        // Airtable often returns ISO strings; keep it simple: show DD Mon
+        const d = new Date(dstr);
+        if (isNaN(d.getTime())) return String(dstr);
+        const day = d.getDate();
+        const mon = d.toLocaleString(undefined, { month: "short" });
+        return `${day} ${mon}`;
+    };
+    const domainLabel = (url) => {
+        if (!url) return "";
+        try { return new URL(url).hostname.replace(/^www\./, ""); }
+        catch { return "Link"; }
     };
 
     try {
         const records = await fetchTable(AIRTABLE_TABLE_FLIGHTS);
-
         if (!records || records.length === 0) {
             container.innerHTML = `<p>No flights found.</p>`;
             return;
         }
 
-        // Table wrapper + header
-        const headerHtml = `
-            <div class="table-container">
-              <table class="table-view">
-                <thead>
-                  <tr>
-                    <th>Family</th>
-                    <th>Airline</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Departure</th>
-                    <th>Return</th>
-                    <th>Original</th>
-                    <th>Price (${displayCurrency})</th>
-                    <th>Booking</th>
-                  </tr>
-                </thead>
-                <tbody>
+        let html = `
+          <div class="table-container">
+            <table class="table-view wide">
+              <thead>
+                <tr>
+                  <th></th> <!-- checkbox -->
+                  <th>Family</th>
+                  <th>Airline</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Departure</th>
+                  <th>Return</th>
+                  <th>Price (${displayCurrency})</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody>
         `;
 
-        // Rows
-        const rowsHtml = records.map(r => {
-            // robust field extraction (uses getField if available)
-            const get = (names) => {
-                if (typeof getField === "function") {
-                    return getField(r, names);
-                }
-                // fallback: try first name
-                return r.fields && r.fields[names[0]] !== undefined ? r.fields[names[0]] : undefined;
-            };
+        html += records.map(r => {
+            const familyName = pick(r, ["Name (from Family)","Family","Family Name"]) || "";
+            const familyShort = trimFamily(familyName);
+            const airline = pick(r, ["Airline"]) || "";
+            const origin = pick(r, ["Origin","From"]) || "";
+            const destination = pick(r, ["Destination","To"]) || "";
+            const dep = shortDate(pick(r, ["Departure Date","Departure"])) || "";
+            const ret = shortDate(pick(r, ["Return Date","Return"])) || "";
 
-            const famLookup = get([
-                "Name (from Family)",
-                "Name (from Families Included)",
-                "Name (from Family)",
-                "Name (From Family)",
-                "Family"
-            ]);
-            const family = shortFamily(famLookup);
+            const priceRaw = pick(r, ["Price input","Price (input)","Price"]) ?? "";
+            const currency = pick(r, ["Currency","currency"]) || "";
 
-            const airline = get(["Airline", "airline"]) || "";
-            const origin = get(["Origin", "origin", "From"]) || "";
-            const destination = get(["Destination", "destination", "To"]) || "";
-            const depRaw = get(["Departure Date", "Departure", "departure"]) || "";
-            const retRaw = get(["Return Date", "Return", "return"]) || "";
-            const depDate = formatShortDate(depRaw);
-            const retDate = formatShortDate(retRaw);
+            const link = pick(r, ["Booking Link","Link"]) || "";
+            const platform = link ? domainLabel(link) : "";
 
-            const inputPriceRaw = get(["Price input", "Price (input)", "Price"]) ;
-            const currency = get(["Currency", "currency"]) || "";
-
-            const inputPrice = (inputPriceRaw === 0 || inputPriceRaw) ? Number(inputPriceRaw) : null;
-
-            // converted price
+            let convertedVal = 0;
             let convertedStr = "—";
-            if (inputPrice != null && currency) {
-                const convertedVal = (typeof convert === "function")
-                    ? convert(Number(inputPrice), String(currency), displayCurrency)
-                    : null;
-                if (convertedVal !== null && convertedVal !== undefined && !isNaN(convertedVal)) {
-                    convertedStr = (typeof formatMoney === "function")
-                        ? formatMoney(convertedVal, displayCurrency)
-                        : `${convertedVal.toFixed(2)} ${displayCurrency}`;
+            if (priceRaw !== "" && currency) {
+                const num = Number(priceRaw);
+                if (!isNaN(num)) {
+                    convertedVal = convert(num, String(currency), displayCurrency) || 0;
+                    convertedStr = formatMoney(convertedVal, displayCurrency);
                 }
             }
 
-            const originalStr = (inputPrice != null && currency) ? `${inputPrice} ${currency}` : "—";
-
-            const rawLink = get(["Booking Link", "Link", "booking link", "booking"]) || "";
-            // extract domain for nicer label
-            let linkLabel = "";
-            if (rawLink) {
-                try {
-                    const u = new URL(rawLink);
-                    linkLabel = u.hostname.replace(/^www\./, "");
-                } catch {
-                    linkLabel = "Booking";
-                }
-            }
-
-            const linkHtml = rawLink
-                ? `<a href="${rawLink}" target="_blank" rel="noopener" class="link-icon">${linkLabel}</a>`
+            const linkHtml = link
+                ? `<a href="${link}" target="_blank" rel="noopener" class="link-icon" aria-label="Open booking link">${platform || "link"}</a>`
                 : "";
 
             return `
-                <tr>
-                    <td>${family}</td>
-                    <td>${airline}</td>
-                    <td>${origin}</td>
-                    <td>${destination}</td>
-                    <td>${depDate}</td>
-                    <td>${retDate}</td>
-                    <td>${originalStr}</td>
-                    <td>${convertedStr}</td>
-                    <td>${linkHtml}</td>
-                </tr>
+              <tr>
+                <td>
+                    <input 
+                        type="checkbox" 
+                        class="item-checkbox" 
+                        data-id="${r.id}"
+                        data-amount="${!isNaN(Number(priceRaw)) ? Number(priceRaw) : 0}"
+                        data-currency="${currency || 'USD'}"
+                        ${selectedItems.has(r.id) ? "checked" : ""}
+                    />
+                 </td>
+                <td>${familyShort}</td>
+                <td>${airline}</td>
+                <td>${origin}</td>
+                <td>${destination}</td>
+                <td>${dep}</td>
+                <td>${ret}</td>
+                <td>${convertedStr}</td>
+                <td>${linkHtml}</td>
+              </tr>
             `;
         }).join("");
 
-        const footerHtml = `
-                </tbody>
-              </table>
-            </div>
+        html += `
+              </tbody>
+            </table>
+          </div>
         `;
 
-        container.innerHTML = headerHtml + rowsHtml + footerHtml;
+        container.innerHTML = html;
     } catch (err) {
         console.error("displayFlights error:", err);
-        if (errorEl) {
-            errorEl.style.display = "block";
-            errorEl.textContent = `Failed to load Flights: ${err.message || err}`;
-        }
+        if (errorEl) { errorEl.style.display = "block"; errorEl.textContent = `Failed to load Flights: ${err.message || err}`; }
         container.innerHTML = "";
     } finally {
         if (loadingEl) loadingEl.style.display = "none";
@@ -443,6 +439,7 @@ async function displayFlights() {
 }
 
 // --- displayExtras: builds a full table into #extras-list (uses existing convert/formatMoney/displayCurrency)
+// === Extras display (with checkbox + numeric data-price) ===
 async function displayExtras() {
     const container = document.getElementById("extras-list");
     const loadingEl = document.getElementById("loading-extras");
@@ -454,12 +451,8 @@ async function displayExtras() {
     }
 
     if (loadingEl) loadingEl.style.display = "block";
-    if (errorEl) {
-        errorEl.style.display = "none";
-        errorEl.textContent = "";
-    }
+    if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
 
-    // local helper to get fields (uses your global getField if present)
     const pick = (record, names) => {
         if (typeof getField === "function") return getField(record, names);
         for (const n of names) {
@@ -467,31 +460,25 @@ async function displayExtras() {
         }
         return undefined;
     };
-
-    // pretty domain label (like Flights)
     const domainLabel = (url) => {
         if (!url) return "";
-        try {
-            return new URL(url).hostname.replace(/^www\./, "");
-        } catch {
-            return "Link";
-        }
+        try { return new URL(url).hostname.replace(/^www\./, ""); }
+        catch { return "Link"; }
     };
 
     try {
         const records = await fetchTable(AIRTABLE_TABLE_EXTRAS);
-
         if (!records || records.length === 0) {
             container.innerHTML = `<p>No extras found.</p>`;
             return;
         }
 
-        // header
         let html = `
           <div class="table-container">
             <table class="table-view">
               <thead>
                 <tr>
+                  <th></th> <!-- checkbox -->
                   <th>Name</th>
                   <th>Original</th>
                   <th>Price (${displayCurrency})</th>
@@ -502,25 +489,22 @@ async function displayExtras() {
               <tbody>
         `;
 
-        // rows
         html += records.map(r => {
-            const name = pick(r, ["Name", "Extra", "Title"]) || "Unnamed Extra";
-            const priceRaw = pick(r, ["Price input", "Cost", "Price"]);
-            const currency = pick(r, ["Currency", "currency"]) || "";
-            const notes = pick(r, ["Notes", "notes"]) || "";
-            const link = pick(r, ["Booking Link", "Link"]) || "";
+            const name = pick(r, ["Name","Extra","Title"]) || "Unnamed Extra";
+            const priceRaw = pick(r, ["Price input","Cost","Price"]) ?? "";
+            const currency = pick(r, ["Currency","currency"]) || "";
+            const notes = pick(r, ["Notes","notes"]) || "";
+            const link = pick(r, ["Booking Link","Link"]) || "";
 
-            const originalStr = (priceRaw !== undefined && priceRaw !== null && currency)
-                ? `${priceRaw} ${currency}` : "—";
-
+            let originalStr = "—";
+            let convertedVal = 0;
             let convertedStr = "—";
-            if (priceRaw !== undefined && priceRaw !== null && currency) {
-                const val = Number(priceRaw);
-                if (!isNaN(val)) {
-                    const conv = convert(val, String(currency), displayCurrency);
-                    if (conv !== null && conv !== undefined && !isNaN(conv)) {
-                        convertedStr = formatMoney(conv, displayCurrency);
-                    }
+            if (priceRaw !== "" && currency) {
+                const num = Number(priceRaw);
+                if (!isNaN(num)) {
+                    convertedVal = convert(num, String(currency), displayCurrency) || 0;
+                    originalStr = `${num} ${currency}`;
+                    convertedStr = formatMoney(convertedVal, displayCurrency);
                 }
             }
 
@@ -530,6 +514,16 @@ async function displayExtras() {
 
             return `
               <tr>
+                <td>
+                    <input 
+                        type="checkbox" 
+                        class="item-checkbox" 
+                        data-id="${r.id}"
+                        data-amount="${!isNaN(Number(priceRaw)) ? Number(priceRaw) : 0}"
+                        data-currency="${currency || 'USD'}"
+                        ${selectedItems.has(r.id) ? "checked" : ""}
+                    />
+                </td>
                 <td>${name}</td>
                 <td>${originalStr}</td>
                 <td>${convertedStr}</td>
@@ -546,13 +540,9 @@ async function displayExtras() {
         `;
 
         container.innerHTML = html;
-
     } catch (err) {
         console.error("displayExtras error:", err);
-        if (errorEl) {
-            errorEl.style.display = "block";
-            errorEl.textContent = `Failed to load Extras: ${err.message || err}`;
-        }
+        if (errorEl) { errorEl.style.display = "block"; errorEl.textContent = `Failed to load Extras: ${err.message || err}`; }
         container.innerHTML = "";
     } finally {
         if (loadingEl) loadingEl.style.display = "none";
@@ -603,6 +593,45 @@ function renderCurrencyToggle() {
         }
     });
 }
+
+// --- Trip Total ---
+// === Trip Total: always compute from raw amounts in USD baseline, then derive EUR ===
+function updateTripTotal() {
+    let totalUSD = 0;
+  
+    document.querySelectorAll(".item-checkbox:checked").forEach(cb => {
+      const amt = parseFloat(cb.getAttribute("data-amount")) || 0;
+      const cur = cb.getAttribute("data-currency") || "USD";
+      const valUSD = convert(amt, cur, "USD");
+      if (valUSD != null && !isNaN(valUSD)) totalUSD += valUSD;
+    });
+  
+    const totalEUR = convert(totalUSD, "USD", "EUR") || 0;
+  
+    const totalEl = document.querySelector("#trip-total p strong");
+    if (totalEl) {
+      totalEl.textContent = `${formatMoney(totalUSD, "USD")} | ${formatMoney(totalEUR, "EUR")}`;
+    }
+  }
+// Event delegation: recalc whenever checkbox changes or currency changes
+document.addEventListener("change", (e) => {
+    if (e.target.matches(".item-checkbox") || e.target.name === "currency") {
+        updateTripTotal();
+    }
+    if (e.target.name === "currency") {
+        displayCurrency = e.target.value;
+        localStorage.setItem("displayCurrency", displayCurrency);
+      
+        // Re-render sections so visible prices change
+        displayFamilies();
+        displayResorts();
+        displayFlights();
+        displayExtras();
+      
+        // Then recompute totals from raw amounts
+        updateTripTotal();
+      }
+});
 
 document.addEventListener("DOMContentLoaded", () => {
     renderCurrencyToggle();
