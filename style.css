@@ -15,14 +15,31 @@ body {
 .container {
     max-width: 960px;
     margin: 40px auto;
-    padding: 0 20px;
+    padding: 20px 20px 0 20px;
 }
 
 /* === App Title/Header === */
+/* App Title/Header */
 .app-header {
     text-align: center;
     margin-bottom: 32px;
-}
+    padding: 60px 20px 0 20px;
+  }
+
+  /* Change this selector from ".app-header h1" to "h1.app-header" */
+h1.app-header {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 2rem;
+    background: linear-gradient(135deg, #FFB36B, #2BB3A3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0;
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2D2D2D; /* harmless fallback */
+  }
+
 .app-header h1 {
     font-family: 'Poppins', sans-serif;
     font-weight: 700;
@@ -31,6 +48,9 @@ body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin: 0;
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2D2D2D;
 }
 
 /* === Section Cards (Families, Resorts, Flights, etc.) === */
@@ -198,4 +218,31 @@ body {
 
 #currency-toggle label:hover {
     background: #f0f0f0;
+}
+
+/* Currency Selector (compact, aligned with cards) */
+.currency-card {
+  max-width: 900px;          /* match .section-card width */
+  margin: 0 auto 12px auto;  /* center the block */
+  display: flex;
+  justify-content: flex-end; /* push selector to the right edge of that width */
+}
+
+.currency-selector {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  padding: 6px 12px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.currency-selector input[type="radio"] {
+  margin-right: 4px;
+  transform: scale(1.1);
+  accent-color: #2BB3A3;
 }

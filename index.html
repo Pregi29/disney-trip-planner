@@ -9,20 +9,32 @@
     <script src="script.js"></script>
 </head>
 <body>
-    <header>
-        <h1>Disney Trip Planner</h1>
-    </header>
-    
-    <main>
-        <div class="container">
-          <!-- currency toggle is injected here by script.js -->
-      
-          <div class="section-card">
-            <h2>Families</h2>
-            <div id="loading-families" class="loading">Loading families...</div>
-            <div id="error-families" class="error" style="display:none;"></div>
-            <div id="families-list"></div>
-          </div>
+  <header>
+    <h1 class="app-header">Disney Trip Planner</h1>
+  </header>
+  
+  <main>
+    <div class="container">
+      <!-- Currency selector (new, compact) -->
+      <div class="currency-card">
+        <div class="currency-selector">
+          <label>
+            <input type="radio" name="currency" value="USD" checked>
+            USD
+          </label>
+          <label>
+            <input type="radio" name="currency" value="EUR">
+            EUR
+          </label>
+        </div>
+      </div>
+  
+      <div class="section-card">
+        <h2>Families</h2>
+        <div id="loading-families" class="loading">Loading families...</div>
+        <div id="error-families" class="error" style="display:none;"></div>
+        <div id="families-list"></div>
+      </div>
       
           <div class="section-card">
             <h2>Resorts</h2>
