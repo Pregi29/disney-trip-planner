@@ -246,3 +246,16 @@ h1.app-header {
   transform: scale(1.1);
   accent-color: #2BB3A3;
 }
+
+/* === Booking Link Styling === */
+.btn-link {
+    color: #2BB3A3; /* teal for consistency with palette */
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s ease, text-decoration 0.2s ease;
+  }
+  
+  .btn-link:hover {
+    color: #FF8C42; /* peach highlight on hover */
+    text-decoration: underline;
+  }
